@@ -3,8 +3,8 @@ from django.http import HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from chores.models import ChoreAssignment, Member
-from chores.selectors import dashboard_buckets
+from chores.models import Chore, ChoreAssignment, Member
+from chores.selectors import completion_history, dashboard_buckets
 from chores.services import complete_assignment
 
 ACTING_MEMBER_SESSION_KEY = "acting_member_id"
@@ -33,13 +33,16 @@ def set_acting_member(request):
     return redirect("chores:dashboard")
 
 
-def _get_acting_member(request):
-    member_id = request.session.get(ACTING_MEMBER_SESSION_KEY)
-    if member_id is None:
-        return None
+def _parse_int(value):
     try:
-        member_id = int(member_id)
+        return int(value)
     except (TypeError, ValueError):
+        return None
+
+
+def _get_acting_member(request):
+    member_id = _parse_int(request.session.get(ACTING_MEMBER_SESSION_KEY))
+    if member_id is None:
         return None
     return Member.objects.filter(pk=member_id).first()
 
@@ -59,3 +62,16 @@ def mark_done(request, assignment_id):
     )
     messages.success(request, f'Marked "{assignment.chore.name}" done.')
     return redirect("chores:dashboard")
+
+
+def history(request):
+    member = _parse_int(request.GET.get("member"))
+    chore = _parse_int(request.GET.get("chore"))
+    context = {
+        "completions": completion_history(member=member, chore=chore),
+        "members": Member.objects.all(),
+        "chores": Chore.objects.all(),
+        "selected_member": member,
+        "selected_chore": chore,
+    }
+    return render(request, "chores/history.html", context)

@@ -12,4 +12,5 @@ urlpatterns = [
         views.mark_done,
         name="mark_done",
     ),
+    path("history/", views.history, name="history"),
 ]

@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from django.db.models import Count, Q
 
-from chores.models import ChoreAssignment, Member
+from chores.models import ChoreAssignment, Completion, Member
 
 UPCOMING_WINDOW_DAYS = 7
 
@@ -58,3 +58,20 @@ def _open_counts_by_member():
     ).order_by("name")
 
     return [{"member": member, "open_count": member.open_count} for member in members]
+
+
+def completion_history(member=None, chore=None):
+    """Every completion, newest first, optionally filtered by member/chore id.
+
+    A single select_related query regardless of row count. An id that
+    matches nothing — or a filter that isn't given — simply narrows or
+    leaves the queryset alone; there's no lookup that can raise.
+    """
+    completions = Completion.objects.select_related(
+        "completed_by", "assignment__chore"
+    )
+    if member is not None:
+        completions = completions.filter(completed_by_id=member)
+    if chore is not None:
+        completions = completions.filter(assignment__chore_id=chore)
+    return list(completions)
