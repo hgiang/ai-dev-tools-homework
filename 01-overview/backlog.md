@@ -47,7 +47,7 @@ plain functions with no database.
 
 ## Task 1 — Household roster in admin
 
-- [ ] **Ships:** run the server, open `/admin/`, add and deactivate household members.
+- [x] **Ships:** run the server, open `/admin/`, add and deactivate household members.
 
 **Files:** create `chores/tests/__init__.py`, `chores/tests/test_members.py`;
 modify `chores/models.py`, `chores/admin.py`; delete `chores/tests.py`;
@@ -68,7 +68,7 @@ active. Duplicate names are rejected.
 
 ## Task 2 — Chore catalogue in admin
 
-- [ ] **Ships:** define chores with a name, optional description, and a recurrence.
+- [x] **Ships:** define chores with a name, optional description, and a recurrence.
 
 **Files:** modify `chores/models.py`, `chores/admin.py`; create
 `chores/tests/test_chores.py`.
@@ -87,7 +87,7 @@ Recurrence is a closed dropdown — an invalid value fails validation.
 
 ## Task 3 — Rotation order per chore
 
-- [ ] **Ships:** set who is in a chore's rotation and in what order, edited inline on the chore page.
+- [x] **Ships:** set who is in a chore's rotation and in what order, edited inline on the chore page.
 
 **Files:** create `chores/rotation.py`, `chores/tests/test_rotation.py`; modify
 `chores/models.py`, `chores/admin.py`.
@@ -111,7 +111,7 @@ last slot to the first; empty and single-member rotations; the member currently
 
 ## Task 4 — Assignments and due dates
 
-- [ ] **Ships:** every chore has one open assignment with a real due date, visible in admin.
+- [x] **Ships:** every chore has one open assignment with a real due date, visible in admin.
 
 **Files:** create `chores/recurrence.py`, `chores/tests/test_recurrence.py`,
 `chores/tests/test_assignments.py`; modify `chores/models.py`, `chores/admin.py`.
@@ -135,7 +135,7 @@ rotation position 0; seeding twice not creating a second open assignment.
 
 ## Task 5 — Dashboard (read-only) and "acting as"
 
-- [ ] **Ships:** a real home page showing the household's current state, with an "acting as…" selector.
+- [x] **Ships:** a real home page showing the household's current state, with an "acting as…" selector.
 
 **Files:** create `chores/selectors.py`, `chores/urls.py`,
 `chores/templates/chores/base.html`, `chores/templates/chores/dashboard.html`,
@@ -162,7 +162,7 @@ session is ignored rather than crashing.
 
 ## Task 6 — Mark done, and the rotation advances
 
-- [ ] **Ships:** the core loop — click "Mark done", the chore reassigns to the next person.
+- [x] **Ships:** the core loop — click "Mark done", the chore reassigns to the next person.
 
 **Files:** create `chores/services.py`, `chores/tests/test_completion.py`;
 modify `chores/models.py`, `chores/views.py`, `chores/urls.py`,
@@ -192,7 +192,7 @@ reassigns to themselves; GET is rejected.
 
 ## Task 7 — Overdue rollover
 
-- [ ] **Ships:** `manage.py roll_forward` — a passed due date advances the rotation without anyone clicking.
+- [x] **Ships:** `manage.py roll_forward` — a passed due date advances the rotation without anyone clicking.
 
 **Files:** create `chores/management/commands/roll_forward.py`,
 `chores/tests/test_rollover.py`; modify `chores/services.py`.
@@ -217,7 +217,7 @@ assignment produces nothing; the return count is accurate.
 
 ## Task 8 — Completion history
 
-- [ ] **Ships:** the filterable, append-only record the household uses to settle disputes.
+- [x] **Ships:** the filterable, append-only record the household uses to settle disputes.
 
 **Files:** create `chores/templates/chores/history.html`,
 `chores/tests/test_history.py`; modify `chores/selectors.py`, `chores/views.py`,
