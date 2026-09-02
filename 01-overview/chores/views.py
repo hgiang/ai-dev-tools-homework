@@ -1,9 +1,11 @@
+from django.contrib import messages
 from django.http import HttpResponseNotAllowed
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from chores.models import Member
+from chores.models import ChoreAssignment, Member
 from chores.selectors import dashboard_buckets
+from chores.services import complete_assignment
 
 ACTING_MEMBER_SESSION_KEY = "acting_member_id"
 
@@ -40,3 +42,20 @@ def _get_acting_member(request):
     except (TypeError, ValueError):
         return None
     return Member.objects.filter(pk=member_id).first()
+
+
+def mark_done(request, assignment_id):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    assignment = get_object_or_404(ChoreAssignment, pk=assignment_id)
+    acting_member = _get_acting_member(request)
+    if acting_member is None:
+        messages.error(request, "Choose who's acting before marking a chore done.")
+        return redirect("chores:dashboard")
+
+    complete_assignment(
+        assignment, completed_by=acting_member, today=timezone.localdate()
+    )
+    messages.success(request, f'Marked "{assignment.chore.name}" done.')
+    return redirect("chores:dashboard")

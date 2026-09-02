@@ -102,3 +102,28 @@ class ChoreAssignment(models.Model):
 
     def __str__(self):
         return f"{self.chore.name} for {self.member.name}, due {self.due_date}"
+
+
+class Completion(models.Model):
+    """Append-only record that a member completed an assignment.
+
+    One-to-one with the assignment, so the database itself rules out
+    completing the same occurrence twice.
+    """
+
+    assignment = models.OneToOneField(
+        ChoreAssignment, on_delete=models.CASCADE, related_name="completion"
+    )
+    completed_by = models.ForeignKey(
+        Member, on_delete=models.PROTECT, related_name="completions"
+    )
+    completed_at = models.DateTimeField()
+
+    class Meta:
+        ordering = ["-completed_at"]
+
+    def __str__(self):
+        return (
+            f"{self.assignment.chore.name} completed by {self.completed_by.name} "
+            f"on {self.completed_at:%Y-%m-%d}"
+        )

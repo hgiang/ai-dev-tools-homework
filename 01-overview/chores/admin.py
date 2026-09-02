@@ -1,6 +1,6 @@
 from django.contrib import admin, messages
 
-from chores.models import Chore, ChoreAssignment, Member, RotationSlot
+from chores.models import Chore, ChoreAssignment, Completion, Member, RotationSlot
 from chores.services import EmptyRotationError, seed_first_assignment
 
 
@@ -48,3 +48,20 @@ class ChoreAssignmentAdmin(admin.ModelAdmin):
     list_filter = ["status", "member"]
     ordering = ["due_date"]
     search_fields = ["chore__name", "member__name"]
+
+
+@admin.register(Completion)
+class CompletionAdmin(admin.ModelAdmin):
+    list_display = ["assignment", "completed_by", "completed_at"]
+    list_filter = ["completed_by"]
+    ordering = ["-completed_at"]
+    search_fields = ["assignment__chore__name", "completed_by__name"]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

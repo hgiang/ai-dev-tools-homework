@@ -7,4 +7,9 @@ app_name = "chores"
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("acting-as/", views.set_acting_member, name="set_acting_member"),
+    path(
+        "assignments/<int:assignment_id>/mark-done/",
+        views.mark_done,
+        name="mark_done",
+    ),
 ]

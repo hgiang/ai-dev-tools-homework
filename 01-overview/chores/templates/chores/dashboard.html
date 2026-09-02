@@ -24,6 +24,7 @@
                         <td>{{ assignment.chore.name }}</td>
                         <td>{{ assignment.member.name }}</td>
                         <td>due {{ assignment.due_date }}</td>
+                        <td>{% include "chores/_mark_done_form.html" %}</td>
                     </tr>
                 {% endfor %}
             </table>
@@ -41,6 +42,7 @@
                     {% for assignment in group.assignments %}
                         <tr>
                             <td>{{ assignment.chore.name }}</td>
+                            <td>{% include "chores/_mark_done_form.html" %}</td>
                         </tr>
                     {% endfor %}
                 </table>
@@ -59,6 +61,7 @@
                         <td>{{ assignment.chore.name }}</td>
                         <td>{{ assignment.member.name }}</td>
                         <td>due {{ assignment.due_date }}</td>
+                        <td>{% include "chores/_mark_done_form.html" %}</td>
                     </tr>
                 {% endfor %}
             </table>

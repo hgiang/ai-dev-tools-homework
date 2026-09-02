@@ -13,6 +13,11 @@
         .overdue { background: #fdecea; color: #a4262c; }
         .empty { color: #666; font-style: italic; }
         .acting-as select { margin-right: 0.5rem; }
+        .messages { list-style: none; padding: 0; }
+        .messages li { padding: 0.5rem; margin-bottom: 0.5rem; border-radius: 4px; }
+        .messages .error { background: #fdecea; color: #a4262c; }
+        .messages .success { background: #e6f4ea; color: #1e7b34; }
+        .mark-done { display: inline; margin-left: 0.5rem; }
     </style>
 </head>
 <body>
@@ -20,6 +25,13 @@
     <nav>
         <a href="{% url 'chores:dashboard' %}">Dashboard</a>
     </nav>
+    {% if messages %}
+        <ul class="messages">
+            {% for message in messages %}
+                <li class="{{ message.tags }}">{{ message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
     {% block content %}{% endblock %}
 </body>
 </html>

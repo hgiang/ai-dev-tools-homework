@@ -1,0 +1,4 @@
+<form class="mark-done" action="{% url 'chores:mark_done' assignment.pk %}" method="post">
+    {% csrf_token %}
+    <button type="submit">Mark done</button>
+</form>
