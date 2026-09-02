@@ -3,6 +3,7 @@ from django.db import models
 MEMBER_NAME_MAX_LENGTH = 100
 CHORE_NAME_MAX_LENGTH = 100
 RECURRENCE_MAX_LENGTH = 10
+STATUS_MAX_LENGTH = 10
 
 
 class Member(models.Model):
@@ -71,3 +72,33 @@ class RotationSlot(models.Model):
 
     def __str__(self):
         return f"{self.chore.name} #{self.position}: {self.member.name}"
+
+
+class ChoreAssignment(models.Model):
+    """One occurrence of a chore, owed by one member on one due date."""
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        DONE = "done", "Done"
+
+    chore = models.ForeignKey(
+        Chore, on_delete=models.CASCADE, related_name="assignments"
+    )
+    member = models.ForeignKey(
+        Member, on_delete=models.PROTECT, related_name="assignments"
+    )
+    due_date = models.DateField()
+    status = models.CharField(
+        max_length=STATUS_MAX_LENGTH,
+        choices=Status.choices,
+        default=Status.OPEN,
+    )
+
+    class Meta:
+        ordering = ["due_date"]
+        indexes = [
+            models.Index(fields=["status", "due_date"], name="assignment_status_due_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.chore.name} for {self.member.name}, due {self.due_date}"
