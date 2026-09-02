@@ -41,3 +41,33 @@ class Chore(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class RotationSlot(models.Model):
+    """One member's place in a chore's rotation order.
+
+    A slot survives its member going inactive, so deactivating and later
+    reactivating someone restores their original place in the rotation.
+    """
+
+    chore = models.ForeignKey(
+        Chore, on_delete=models.CASCADE, related_name="rotation_slots"
+    )
+    member = models.ForeignKey(
+        Member, on_delete=models.PROTECT, related_name="rotation_slots"
+    )
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        # Ties broken by id so the order is deterministic even while two slots
+        # transiently share a position, which is what reordering a formset does.
+        ordering = ["position", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["chore", "member"],
+                name="unique_member_per_chore_rotation",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.chore.name} #{self.position}: {self.member.name}"
