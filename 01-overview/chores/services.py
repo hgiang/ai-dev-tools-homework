@@ -3,7 +3,7 @@
 from django.db import transaction
 from django.utils import timezone
 
-from chores.models import ChoreAssignment, Completion
+from chores.models import Chore, ChoreAssignment, Completion
 from chores.recurrence import next_due_date
 from chores.rotation import active_rotation, next_member
 
@@ -40,6 +40,22 @@ def seed_first_assignment(chore):
     )
 
 
+def _create_successor(assignment, today):
+    """The next occurrence after `assignment`, due one period past `today`.
+
+    Returns None, creating nothing, if no active member is left to take it.
+    """
+    successor = next_member(assignment.chore, after=assignment.member)
+    if successor is None:
+        return None
+
+    return ChoreAssignment.objects.create(
+        chore=assignment.chore,
+        member=successor,
+        due_date=next_due_date(today, assignment.chore.recurrence),
+    )
+
+
 def complete_assignment(assignment, completed_by, today):
     """Mark `assignment` done and roll the rotation forward.
 
@@ -65,12 +81,36 @@ def complete_assignment(assignment, completed_by, today):
             completed_at=timezone.now(),
         )
 
-        successor = next_member(assignment.chore, after=assignment.member)
-        if successor is not None:
-            ChoreAssignment.objects.create(
-                chore=assignment.chore,
-                member=successor,
-                due_date=next_due_date(today, assignment.chore.recurrence),
-            )
+        _create_successor(assignment, today)
 
     return completion
+
+
+def roll_forward(today):
+    """Advance every chore whose open assignment has fallen past due.
+
+    The overdue assignment is left exactly as it is — still open, still
+    attributed to the member who missed it — so it keeps showing up in the
+    dashboard's overdue section and open-count imbalance. Only a fresh
+    successor is created, for the next active member, due one period past
+    `today`.
+
+    Idempotent: a chore that already has an open assignment due today or
+    later — whether freshly seeded or already rolled forward — is left
+    alone. Returns the number of successors created.
+    """
+    created = 0
+    for chore in Chore.objects.all():
+        open_assignments = list(
+            chore.assignments.filter(status=ChoreAssignment.Status.OPEN)
+        )
+        if not open_assignments:
+            continue
+        if any(assignment.due_date >= today for assignment in open_assignments):
+            continue
+
+        most_recent_overdue = open_assignments[-1]
+        if _create_successor(most_recent_overdue, today) is not None:
+            created += 1
+
+    return created
