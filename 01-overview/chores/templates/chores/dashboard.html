@@ -1,0 +1,81 @@
+{% extends "chores/base.html" %}
+
+{% block content %}
+    <form class="acting-as" action="{% url 'chores:set_acting_member' %}" method="post">
+        {% csrf_token %}
+        <label for="member_id">Acting as</label>
+        <select name="member_id" id="member_id">
+            <option value="">— not set —</option>
+            {% for member in members %}
+                <option value="{{ member.pk }}" {% if acting_member.pk == member.pk %}selected{% endif %}>
+                    {{ member.name }}
+                </option>
+            {% endfor %}
+        </select>
+        <button type="submit">Set</button>
+    </form>
+
+    <section>
+        <h2>Overdue</h2>
+        {% if overdue %}
+            <table>
+                {% for assignment in overdue %}
+                    <tr class="overdue">
+                        <td>{{ assignment.chore.name }}</td>
+                        <td>{{ assignment.member.name }}</td>
+                        <td>due {{ assignment.due_date }}</td>
+                    </tr>
+                {% endfor %}
+            </table>
+        {% else %}
+            <p class="empty">Nothing overdue.</p>
+        {% endif %}
+    </section>
+
+    <section>
+        <h2>Due today</h2>
+        {% if due_today %}
+            {% for group in due_today %}
+                <h3>{{ group.member.name }}</h3>
+                <table>
+                    {% for assignment in group.assignments %}
+                        <tr>
+                            <td>{{ assignment.chore.name }}</td>
+                        </tr>
+                    {% endfor %}
+                </table>
+            {% endfor %}
+        {% else %}
+            <p class="empty">Nothing due today.</p>
+        {% endif %}
+    </section>
+
+    <section>
+        <h2>Coming up this week</h2>
+        {% if upcoming_this_week %}
+            <table>
+                {% for assignment in upcoming_this_week %}
+                    <tr>
+                        <td>{{ assignment.chore.name }}</td>
+                        <td>{{ assignment.member.name }}</td>
+                        <td>due {{ assignment.due_date }}</td>
+                    </tr>
+                {% endfor %}
+            </table>
+        {% else %}
+            <p class="empty">Nothing coming up.</p>
+        {% endif %}
+    </section>
+
+    <section>
+        <h2>Open chores by member</h2>
+        <table>
+            {% for row in open_counts_by_member %}
+                <tr>
+                    <td>{{ row.member.name }}</td>
+                    <td>{{ row.open_count }}</td>
+                </tr>
+            {% endfor %}
+        </table>
+    </section>
+{% endblock %}

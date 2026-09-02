@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{% block title %}HouseShare{% endblock %}</title>
+    <style>
+        body { font-family: sans-serif; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; color: #222; }
+        h1 { margin-bottom: 0.25rem; }
+        nav { margin-bottom: 1.5rem; }
+        section { margin-bottom: 2rem; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #ddd; }
+        .overdue { background: #fdecea; color: #a4262c; }
+        .empty { color: #666; font-style: italic; }
+        .acting-as select { margin-right: 0.5rem; }
+    </style>
+</head>
+<body>
+    <h1>HouseShare</h1>
+    <nav>
+        <a href="{% url 'chores:dashboard' %}">Dashboard</a>
+    </nav>
+    {% block content %}{% endblock %}
+</body>
+</html>
