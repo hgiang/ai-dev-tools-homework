@@ -1,0 +1,52 @@
+{% extends "chores/base.html" %}
+
+{% block title %}History — HouseShare{% endblock %}
+
+{% block content %}
+    <form method="get">
+        <label for="member">Member</label>
+        <select name="member" id="member">
+            <option value="">All</option>
+            {% for member in members %}
+                <option value="{{ member.pk }}" {% if selected_member == member.pk %}selected{% endif %}>
+                    {{ member.name }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <label for="chore">Chore</label>
+        <select name="chore" id="chore">
+            <option value="">All</option>
+            {% for chore in chores %}
+                <option value="{{ chore.pk }}" {% if selected_chore == chore.pk %}selected{% endif %}>
+                    {{ chore.name }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <button type="submit">Filter</button>
+    </form>
+
+    <section>
+        {% if completions %}
+            <table>
+                <tr>
+                    <th>Chore</th>
+                    <th>Member</th>
+                    <th>Due</th>
+                    <th>Completed</th>
+                </tr>
+                {% for completion in completions %}
+                    <tr>
+                        <td>{{ completion.assignment.chore.name }}</td>
+                        <td>{{ completion.completed_by.name }}</td>
+                        <td>{{ completion.assignment.due_date }}</td>
+                        <td>{{ completion.completed_at }}</td>
+                    </tr>
+                {% endfor %}
+            </table>
+        {% else %}
+            <p class="empty">No completions recorded yet.</p>
+        {% endif %}
+    </section>
+{% endblock %}

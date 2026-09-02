@@ -5,3 +5,16 @@ requires-python = ">=3.13"
 dependencies = [
     "django>=6.1",
 ]
+
+[dependency-groups]
+dev = [
+    "coverage>=7.16.0",
+]
+
+[tool.coverage.run]
+source = ["chores", "houseshare"]
+omit = ["*/migrations/*", "*/tests/*", "manage.py", "*/asgi.py", "*/wsgi.py"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80
