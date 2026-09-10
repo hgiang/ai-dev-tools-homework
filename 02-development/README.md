@@ -20,12 +20,14 @@ Full specification: [`_docs/specs.md`](_docs/specs.md)
 ```
 frontend/          React app; all backend calls live in src/api/
 backend/
-  app/domain.py       lanes, the Card, and the validation limits
-  app/schemas.py      wire format, mirrors openapi.yaml
-  app/repository.py   CardRepository protocol + the in-memory store
-  app/routes.py       the HTTP surface
-  app/main.py         create_app() factory
-  tests/              board, cards, and move
+  app/domain.py          lanes, the Card, and the validation limits
+  app/schemas.py         wire format, mirrors openapi.yaml
+  app/repository.py      CardRepository protocol + the in-memory store
+  app/db.py              portable schema and engine wiring
+  app/sql_repository.py  the SQLAlchemy implementation
+  app/routes.py          the HTTP surface
+  app/main.py            create_app() factory
+  tests/                 board, cards, move, persistence
 openapi.yaml       API contract between the two
 _docs/specs.md     Product specification
 ```
@@ -69,6 +71,14 @@ uv run uvicorn app.main:app --reload --port 8000
 
 Serves on http://localhost:8000 — interactive docs at `/docs`.
 
+Data lands in `backend/laneway.db`, created on first run. Point `DATABASE_URL`
+elsewhere to use another database:
+
+```bash
+DATABASE_URL=postgresql+psycopg://user:pass@localhost/laneway \
+  uv run uvicorn app.main:app --port 8000
+```
+
 ## Testing
 
 ```bash
@@ -76,8 +86,10 @@ cd backend
 uv run pytest
 ```
 
-39 tests cover the board, card CRUD, the validation rules, and every move case
-(reorder, cross-lane, clamping, renormalizing).
+83 tests. The 39 API tests are parametrized over **both** repository
+implementations, so each one runs twice — once in memory, once against a real
+SQLite file — which is what keeps the store swappable. Five further tests cover
+durability across a restart and the column mapping itself.
 
 ## Status
 
@@ -86,4 +98,4 @@ uv run pytest
 - [x] OpenAPI contract
 - [x] FastAPI backend (mock repository)
 - [x] Frontend connected to backend
-- [ ] SQLAlchemy + SQLite
+- [x] SQLAlchemy + SQLite
