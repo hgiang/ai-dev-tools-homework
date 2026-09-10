@@ -56,7 +56,7 @@ uv run pytest
 ## Status
 
 - [x] Spec written
-- [ ] Frontend prototype (mocked API)
+- [x] Frontend prototype (mocked API)
 - [ ] OpenAPI contract
 - [ ] FastAPI backend (mock repository)
 - [ ] Frontend connected to backend
