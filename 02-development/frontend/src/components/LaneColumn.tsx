@@ -19,10 +19,17 @@ export function LaneColumn({ lane, onCreate, onOpen }: Props) {
   })
 
   return (
-    <section className={`lane${isOver ? ' lane--over' : ''}`} aria-label={lane.name}>
+    <section
+      className={`lane${isOver ? ' lane--over' : ''}`}
+      data-lane={lane.id}
+      aria-label={lane.name}
+    >
       <header className="lane__head">
+        <span className="lane__mark" aria-hidden="true" />
         <h2 className="lane__name">{lane.name}</h2>
-        <span className="lane__count">{lane.cards.length}</span>
+        <span className="lane__count">
+          {String(lane.cards.length).padStart(2, '0')}
+        </span>
       </header>
 
       <div className="lane__body" ref={setNodeRef}>
@@ -30,13 +37,13 @@ export function LaneColumn({ lane, onCreate, onOpen }: Props) {
           items={lane.cards.map((c) => c.id)}
           strategy={verticalListSortingStrategy}
         >
-          {lane.cards.map((card) => (
-            <CardTile key={card.id} card={card} onOpen={onOpen} />
+          {lane.cards.map((card, index) => (
+            <CardTile key={card.id} card={card} index={index} onOpen={onOpen} />
           ))}
         </SortableContext>
 
         {lane.cards.length === 0 && !composing && (
-          <p className="lane__empty">Nothing here yet.</p>
+          <p className="lane__empty">Empty lane</p>
         )}
 
         {composing ? (
@@ -47,7 +54,7 @@ export function LaneColumn({ lane, onCreate, onOpen }: Props) {
           />
         ) : (
           <button className="lane__add" onClick={() => setComposing(true)}>
-            + Add card
+            <span aria-hidden="true">+</span> Add card
           </button>
         )}
       </div>

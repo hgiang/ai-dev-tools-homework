@@ -12,7 +12,9 @@ import { useState } from 'react'
 import type { Card, LaneId } from './api'
 import { CardDetail } from './components/CardDetail'
 import { LaneColumn } from './components/LaneColumn'
+import { ThemeToggle } from './components/ThemeToggle'
 import { useBoard } from './hooks/useBoard'
+import { useTheme } from './hooks/useTheme'
 
 export default function App() {
   const {
@@ -25,6 +27,7 @@ export default function App() {
     deleteCard,
     moveCard,
   } = useBoard()
+  const { theme, toggle } = useTheme()
   const [openCardId, setOpenCardId] = useState<string | null>(null)
 
   const sensors = useSensors(
@@ -67,9 +70,18 @@ export default function App() {
   return (
     <div className="app">
       <header className="app__head">
-        <h1 className="app__title">Laneway</h1>
-        <p className="app__tagline">One board. Three lanes. Nothing else.</p>
+        <div className="app__brand">
+          <h1 className="app__title">Laneway</h1>
+          <p className="app__tagline">One board · three lanes · nothing else</p>
+        </div>
+        <ThemeToggle theme={theme} onToggle={toggle} />
       </header>
+
+      <div className="rule" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
 
       {error && (
         <div className="banner banner--error" role="alert">
