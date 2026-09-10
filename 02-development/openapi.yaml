@@ -1,0 +1,343 @@
+openapi: 3.1.0
+
+info:
+  title: Laneway API
+  version: 1.0.0
+  description: |
+    A single-user Kanban board. There is exactly one board with three fixed
+    lanes; the board itself is not a resource that can be created or deleted.
+    Cards are ordered within a lane by a contiguous integer `position` that the
+    server maintains — clients never assign it directly except through `/move`.
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+
+tags:
+  - name: board
+  - name: cards
+  - name: health
+
+paths:
+  /api/health:
+    get:
+      tags: [health]
+      summary: Liveness probe
+      operationId: getHealth
+      responses:
+        '200':
+          description: The service is up
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: ok
+
+  /api/board:
+    get:
+      tags: [board]
+      summary: Read the whole board
+      description: Returns the three lanes in fixed order, each with its cards ordered by position.
+      operationId: getBoard
+      responses:
+        '200':
+          description: The board
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Board'
+
+  /api/cards:
+    post:
+      tags: [cards]
+      summary: Create a card
+      description: The card is appended to the end of its lane, which defaults to `todo`.
+      operationId: createCard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CardCreate'
+      responses:
+        '201':
+          description: The created card
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Card'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/cards/{card_id}:
+    parameters:
+      - $ref: '#/components/parameters/CardId'
+    get:
+      tags: [cards]
+      summary: Read one card
+      operationId: getCard
+      responses:
+        '200':
+          description: The card
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Card'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [cards]
+      summary: Update a card's content
+      description: |
+        Only the fields present in the body are changed. Lane and position are
+        not editable here — use `/move`.
+      operationId: updateCard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CardUpdate'
+      responses:
+        '200':
+          description: The updated card
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Card'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [cards]
+      summary: Delete a card
+      description: Remaining cards in that lane renormalize to close the gap.
+      operationId: deleteCard
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/cards/{card_id}/move:
+    parameters:
+      - $ref: '#/components/parameters/CardId'
+    post:
+      tags: [cards]
+      summary: Move a card to a lane and position
+      description: |
+        A separate endpoint rather than a PATCH, because a move has side effects
+        on the positions of sibling cards. `position` is interpreted after the
+        card has been removed from its current place, and is clamped to
+        `[0, len(target_lane)]`.
+      operationId: moveCard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CardMove'
+      responses:
+        '200':
+          description: The moved card
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Card'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+components:
+  parameters:
+    CardId:
+      name: card_id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: The card's server-generated identifier
+
+  responses:
+    NotFound:
+      description: No card with that id
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ValidationError:
+      description: The body failed validation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPValidationError'
+
+  schemas:
+    LaneId:
+      type: string
+      enum: [todo, doing, done]
+
+    Card:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - labels
+        - due_date
+        - lane
+        - position
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        labels:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            minLength: 1
+            maxLength: 30
+        due_date:
+          type: [string, 'null']
+          format: date
+        lane:
+          $ref: '#/components/schemas/LaneId'
+        position:
+          type: integer
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CardCreate:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+          default: ''
+        labels:
+          type: array
+          maxItems: 10
+          default: []
+          description: |
+            Entries are trimmed; blank entries are dropped, and duplicates are
+            removed case-insensitively with the first spelling kept.
+          items:
+            type: string
+            maxLength: 30
+        due_date:
+          type: [string, 'null']
+          format: date
+          default: null
+        lane:
+          allOf:
+            - $ref: '#/components/schemas/LaneId'
+          default: todo
+
+    CardUpdate:
+      type: object
+      description: Every field is optional; absent fields are left untouched.
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        labels:
+          type: array
+          maxItems: 10
+          description: |
+            Entries are trimmed; blank entries are dropped, and duplicates are
+            removed case-insensitively with the first spelling kept.
+          items:
+            type: string
+            maxLength: 30
+        due_date:
+          type: [string, 'null']
+          format: date
+
+    CardMove:
+      type: object
+      required: [lane, position]
+      properties:
+        lane:
+          $ref: '#/components/schemas/LaneId'
+        position:
+          type: integer
+          minimum: 0
+
+    Lane:
+      type: object
+      required: [id, name, cards]
+      properties:
+        id:
+          $ref: '#/components/schemas/LaneId'
+        name:
+          type: string
+          description: Display name, e.g. "In Progress"
+        cards:
+          type: array
+          items:
+            $ref: '#/components/schemas/Card'
+
+    Board:
+      type: object
+      required: [lanes]
+      properties:
+        lanes:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/Lane'
+
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+
+    HTTPValidationError:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+            required: [loc, msg, type]
+            properties:
+              loc:
+                type: array
+                items:
+                  type: [string, integer]
+              msg:
+                type: string
+              type:
+                type: string
