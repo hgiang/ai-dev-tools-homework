@@ -44,6 +44,8 @@ _docs/specs.md     Product specification
 
 ## Running
 
+Start the backend first — the frontend talks to it on load.
+
 ### Frontend
 
 ```bash
@@ -52,7 +54,10 @@ npm install
 npm run dev
 ```
 
-Serves on http://localhost:5173
+Serves on http://localhost:5173, and calls the backend at
+`http://localhost:8000/api`. Override with `VITE_API_BASE_URL`, or set
+`VITE_USE_MOCK_API=true` to run the UI against the in-memory mock instead
+(see `.env.example`).
 
 ### Backend
 
@@ -80,5 +85,5 @@ uv run pytest
 - [x] Frontend prototype (mocked API)
 - [x] OpenAPI contract
 - [x] FastAPI backend (mock repository)
-- [ ] Frontend connected to backend
+- [x] Frontend connected to backend
 - [ ] SQLAlchemy + SQLite
