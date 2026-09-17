@@ -1,0 +1,22 @@
+.git
+.gitignore
+.venv
+.ruff_cache
+.pytest_cache
+__pycache__
+*.pyc
+
+# Local state and secrets must never enter an image layer.
+*.db
+*.db-shm
+*.db-wal
+*-credentials.json
+
+# Tests run against the container over HTTP, not from inside it.
+test_*.py
+
+README.md
+k8s
+compose.yaml
+Dockerfile
+.dockerignore

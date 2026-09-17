@@ -1,0 +1,52 @@
+services:
+  # The service name is the hostname other containers use.  Compose puts both
+  # services on one network and registers "postgres" in its DNS, which is why
+  # the API connects to postgres:5432 and not localhost:5432 -- inside a
+  # container, localhost is that container itself.
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: relay
+      POSTGRES_PASSWORD: relay
+      POSTGRES_DB: relay
+    volumes:
+      # Named volume, not a bind mount: the data survives `docker compose down`
+      # and is removed only by `docker compose down -v`.
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready is the readiness signal depends_on waits for below.  The
+      # server briefly accepts connections during init and then restarts, so
+      # "the port is open" is not by itself proof that it is ready.
+      test: ["CMD-SHELL", "pg_isready -U relay -d relay"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    # Not published to the host by default.  Uncomment to inspect the DB with a
+    # local client; it is unnecessary for the app, which reaches it over the
+    # Compose network.
+    # ports:
+    #   - "5432:5432"
+
+  app:
+    build: .
+    image: agent-relay:local
+    environment:
+      RELAY_DATABASE_URL: postgresql+psycopg://relay:relay@postgres:5432/relay
+    ports:
+      - "8080:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # /ready queries the real tables, so it reports not-ready after a wiped
+      # volume instead of passing against an empty schema.
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/ready').status==200 else 1)\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  pgdata:
