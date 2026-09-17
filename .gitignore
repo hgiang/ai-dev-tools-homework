@@ -26,6 +26,9 @@ htmlcov/
 .ruff_cache/
 .mypy_cache/
 
+# act working directory: holds a kubeconfig with a cluster cert and token
+.act/
+
 # Editors / OS
 .DS_Store
 .idea/

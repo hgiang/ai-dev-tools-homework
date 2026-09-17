@@ -1,0 +1,108 @@
+# The database Service.  Its name is the hostname the API connects to, and it
+# is what makes "postgres:5432" resolvable from any Pod in this namespace:
+# kube-dns resolves agent-relay/postgres to this Service's ClusterIP, which
+# forwards to whichever Pod currently matches the selector.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: agent-relay
+spec:
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+  # ClusterIP: reachable inside the cluster only.  The database has no reason
+  # to be exposed to the host; use `kubectl port-forward` when you want psql.
+  type: ClusterIP
+---
+# A StatefulSet rather than a Deployment: its volumeClaimTemplate gives the Pod
+# a PersistentVolumeClaim whose identity survives rescheduling, so the database
+# comes back to the same disk.  A Deployment would share one PVC across every
+# replica, which is wrong for PostgreSQL.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: agent-relay
+spec:
+  serviceName: postgres
+  # Exactly one writer.  Replicating PostgreSQL needs streaming replication and
+  # a failover controller; scaling this number would just corrupt data.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: POSTGRES_DB
+            # Keep the cluster in a subdirectory of the mount.  A fresh volume
+            # can contain lost+found, and initdb refuses a non-empty directory.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            # pg_isready, not a TCP check: during initialization PostgreSQL
+            # briefly accepts connections and then restarts, so an open port is
+            # not proof that queries will succeed.
+            exec:
+              command: ["pg_isready", "-U", "relay", "-d", "relay"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "relay", "-d", "relay"]
+            # Far more tolerant than the readiness probe: readiness pulling the
+            # Pod out of the Service is cheap and reversible, while liveness
+            # restarts it. A slow query storm should do the first, not the second.
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+        # No storageClassName: kind's default (rancher local-path) provisions
+        # it. Deleting the StatefulSet leaves the PVC behind on purpose --
+        # `kubectl -n agent-relay delete pvc data-postgres-0` wipes the data.

@@ -1,0 +1,101 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-relay
+  namespace: agent-relay
+spec:
+  selector:
+    app: agent-relay
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+  type: ClusterIP
+---
+# The Deployment is the answer to Q5: it holds the replica count, creates a
+# ReplicaSet to keep that many Pods running, and drives rolling updates when
+# the pod template changes (which is what Q6's `kubectl set image` does).
+# A Service only routes traffic; a ConfigMap and a Secret only hold data.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-relay
+  namespace: agent-relay
+  labels:
+    app: agent-relay
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: agent-relay
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # maxUnavailable 0 keeps the dashboard serving throughout an update: a
+      # new Pod must pass its readiness probe before an old one is removed.
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: agent-relay
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+      containers:
+        - name: api
+          image: agent-relay:local
+          # Required for images side-loaded with `kind load docker-image`:
+          # the tag does not exist in any registry, so a pull would fail with
+          # ErrImagePull. Q6 uses unique tags, loaded the same way.
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: RELAY_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: RELAY_DATABASE_URL
+          startupProbe:
+            # Covers the slow first start: init_db() waits for PostgreSQL and
+            # takes an advisory lock before creating tables. Without this, the
+            # liveness probe could kill the Pod mid-initialization.
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            # /ready queries the real tables, so a Pod whose database is gone
+            # or whose schema is missing is pulled out of the Service instead
+            # of serving 500s.
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            # /health, not /ready: a database outage should make Pods
+            # unready (stop receiving traffic) but must not restart them in a
+            # loop, which would not fix anything and would slow recovery.
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]

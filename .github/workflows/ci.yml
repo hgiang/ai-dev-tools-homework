@@ -1,0 +1,187 @@
+name: Agent Relay CI
+
+# Homework 3 Q6: test against PostgreSQL, build an image, and deploy to the
+# local kind cluster -- but only when the tests pass.
+#
+# Run it locally with act from the repository root:
+#
+#   ./03-deployment/scripts/act-ci.sh
+#
+# The deploy job targets a kind cluster on the machine running the workflow, so
+# on hosted GitHub runners it is skipped (see the `if:` on that job).
+
+on:
+  push:
+    paths:
+      - "03-deployment/**"
+      - ".github/workflows/ci.yml"
+  workflow_dispatch:
+
+env:
+  APP_DIR: 03-deployment/agent-relay
+  KIND_CLUSTER: agent-relay
+  K8S_NAMESPACE: agent-relay
+
+jobs:
+  test:
+    name: Tests (PostgreSQL)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: relay
+          POSTGRES_PASSWORD: relay
+          POSTGRES_DB: relay
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U relay -d relay"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve the database host
+        # On a hosted runner the job runs on the VM and the service container
+        # publishes 5432 on localhost.  Under act the job itself runs in a
+        # container on the same Docker network, where the service is reachable
+        # by its name instead.  ACT=true is set by act.
+        run: |
+          if [ -n "${ACT:-}" ]; then
+            echo "PGHOST=postgres" >> "$GITHUB_ENV"
+          else
+            echo "PGHOST=127.0.0.1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies
+        working-directory: ${{ env.APP_DIR }}
+        run: uv sync --frozen
+
+      - name: Wait for PostgreSQL
+        run: |
+          for i in $(seq 1 30); do
+            if uv run --directory "$APP_DIR" python -c "
+          import os, socket, sys
+          s = socket.socket()
+          s.settimeout(2)
+          try:
+              s.connect((os.environ['PGHOST'], 5432))
+          except OSError:
+              sys.exit(1)
+          "; then echo "postgres is up"; exit 0; fi
+            sleep 2
+          done
+          echo "postgres never became reachable" >&2
+          exit 1
+
+      - name: Starter test suite against PostgreSQL
+        working-directory: ${{ env.APP_DIR }}
+        env:
+          RELAY_DATABASE_URL: postgresql+psycopg://relay:relay@${{ env.PGHOST }}:5432/relay
+        # These tests drop and recreate every table, which is why they run
+        # against the throwaway CI database and never a real one.
+        run: uv run pytest test_agent_relay.py -q
+
+      - name: Start the API for the integration test
+        working-directory: ${{ env.APP_DIR }}
+        env:
+          RELAY_DATABASE_URL: postgresql+psycopg://relay:relay@${{ env.PGHOST }}:5432/relay
+        run: |
+          uv run uvicorn main:app --host 127.0.0.1 --port 8000 > /tmp/relay.log 2>&1 &
+          echo $! > /tmp/relay.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/ready >/dev/null 2>&1; then
+              echo "relay is ready"; exit 0
+            fi
+            sleep 2
+          done
+          echo "relay never became ready; server log:" >&2
+          cat /tmp/relay.log >&2
+          exit 1
+
+      - name: Integration test against the real API and DB
+        working-directory: ${{ env.APP_DIR }}
+        env:
+          RELAY_BASE_URL: http://127.0.0.1:8000
+        run: uv run pytest test_integration.py -q
+
+      - name: Server log
+        if: always()
+        run: cat /tmp/relay.log || true
+
+  deploy:
+    name: Build and deploy to kind
+    # This is the Q6 answer in mechanical form: `needs` makes the whole job
+    # conditional on the tests. If they fail, this job never starts, nothing is
+    # built or loaded, and the version already running on the cluster keeps
+    # serving traffic untouched.
+    needs: test
+    # A hosted GitHub runner has no kind cluster to deploy to, so only run this
+    # where one exists -- locally, under act.
+    if: ${{ env.ACT == 'true' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubectl and kind
+        # Installed with curl rather than marketplace actions so the job has
+        # one less thing that can fail differently under act.
+        run: |
+          curl -fsSLo /usr/local/bin/kubectl \
+            "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          curl -fsSLo /usr/local/bin/kind \
+            "https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64"
+          chmod +x /usr/local/bin/kubectl /usr/local/bin/kind
+          kubectl version --client
+          kind version
+
+      - name: Compute a unique image tag
+        # Unique per run, not just per commit: re-running the workflow on the
+        # same commit must still produce a tag the Deployment has not seen, or
+        # `kubectl set image` would be a no-op and nothing would roll out.
+        run: echo "IMAGE_TAG=$(git rev-parse --short HEAD)-$(date +%Y%m%d%H%M%S)" >> "$GITHUB_ENV"
+
+      - name: Build the image
+        working-directory: ${{ env.APP_DIR }}
+        run: docker build -t "agent-relay:${IMAGE_TAG}" .
+
+      - name: Load the image into kind
+        # kind nodes are containers with their own image store; an image built
+        # on the host is invisible to them until it is side-loaded like this.
+        # This is also why the Deployment sets imagePullPolicy: IfNotPresent --
+        # the tag exists in no registry.
+        run: kind load docker-image "agent-relay:${IMAGE_TAG}" --name "$KIND_CLUSTER"
+
+      - name: Roll out the new version
+        run: |
+          kubectl -n "$K8S_NAMESPACE" set image \
+            deployment/agent-relay "api=agent-relay:${IMAGE_TAG}"
+          # Block until every new Pod is ready. Without this the job would go
+          # green while the rollout was still in progress -- or still failing.
+          kubectl -n "$K8S_NAMESPACE" rollout status \
+            deployment/agent-relay --timeout=180s
+
+      - name: Report what is running
+        run: |
+          kubectl -n "$K8S_NAMESPACE" get pods -o wide
+          kubectl -n "$K8S_NAMESPACE" get deployment agent-relay \
+            -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+
+      - name: Roll back if the rollout failed
+        if: failure()
+        # A failed rollout leaves the old ReplicaSet in place and the previous
+        # Pods serving, but the Deployment still points at the broken image.
+        # Undo it so the cluster is not left mid-update.
+        run: |
+          kubectl -n "$K8S_NAMESPACE" rollout undo deployment/agent-relay || true
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/agent-relay --timeout=120s || true
